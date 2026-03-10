@@ -1,0 +1,11 @@
+name: smarthome-server
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - Flask
+    - pyserial
+    - awsiotsdk
+    - awscrt
