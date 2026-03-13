@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>AWS IoT Configuration</h1>
+
+<form id="iot-form" onsubmit="connectIoT(event)">
+
+    <button class="btn btn-action" type="submit">
+        Connect to AWS IoT
+    </button>
+
+    <br><br>
+
+    <label for="endpoint_AWS">AWS Endpoint</label>
+    <input id="endpoint_AWS" type="text" name="endpoint_AWS" value="{{ endpoint_AWS }}" required>
+
+    <br><br>
+
+    <label for="cert_filepath_AWS">Certificate File</label>
+    <input id="cert_filepath_AWS" type="text" name="cert_filepath_AWS" value="{{ cert_filepath_AWS }}" required>
+
+    <br><br>
+
+    <label for="pri_key_filepath_AWS">Private Key File</label>
+    <input id="pri_key_filepath_AWS" type="text" name="pri_key_filepath_AWS" value="{{ pri_key_filepath_AWS }}"
+        required>
+
+    <br><br>
+
+    <label for="clientId_AWS">Client ID</label>
+    <input id="clientId_AWS" type="text" name="clientId_AWS" value="{{ clientId_AWS }}" required>
+
+    <br><br>
+
+    <label for="device_name_AWS">Device Name</label>
+    <input id="device_name_AWS" type="text" name="device_name_AWS" value="{{ device_name_AWS }}" required>
+
+    <br><br>
+
+    <label for="message_topic_commands_AWS">Command Topic</label>
+    <input id="message_topic_commands_AWS" type="text" name="message_topic_commands_AWS"
+        value="{{ message_topic_commands_AWS }}" required>
+
+    <br><br>
+
+    <label for="message_topic_telemetry_AWS">Telemetry Topic</label>
+    <input id="message_topic_telemetry_AWS" type="text" name="message_topic_telemetry_AWS"
+        value="{{ message_topic_telemetry_AWS }}" required>
+
+</form>
+
+<h2>Device Response Log</h2>
+<div id="response-log"></div>
+
+<script>
+
+    function logResponse(message) {
+        const log = document.getElementById('response-log');
+        const time = new Date().toLocaleTimeString();
+        log.innerHTML += `<div>[${time}] ${message}</div>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function connectIoT(event) {
+
+        event.preventDefault()
+        const form = document.getElementById("iot-form")
+        const formData = new FormData(form)
+        logResponse("Connecting to AWS IoT...")
+        fetch('/connect_iot', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    logResponse("Connected to AWS IoT")
+                } else {
+                    logResponse("Error: " + data.message)
+                }
+            })
+            .catch(error => {
+                logResponse("Connection error")
+            })
+    }
+
+</script>
+
+{% endblock %}

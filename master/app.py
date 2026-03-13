@@ -38,7 +38,51 @@ clientId_AWS="basicPubSub"
 device_name_AWS="Casa1"
 message_topic_commands_AWS="command"
 message_topic_telemetry_AWS="telemetry"
+client = None
+iot_connected = False
 TIMEOUT_CONNECT_AWS = 100
+
+# Connection to AWS
+def connect_to_aws():
+
+    global client, iot_connected
+
+    # Create MQTT5 client using mutual TLS via X509 Certificate and Private Key
+    print("==== Creating MQTT5 Client ====\n")
+    client = mqtt5_client_builder.mtls_from_path(
+        endpoint=endpoint_AWS,
+        cert_filepath=cert_filepath_AWS,
+        pri_key_filepath=pri_key_filepath_AWS,
+        on_publish_received=on_publish_received_AWS,
+        on_lifecycle_stopped=on_lifecycle_stopped_AWS,
+        on_lifecycle_attempting_connect=on_lifecycle_attempting_connect_AWS,
+        on_lifecycle_connection_success=on_lifecycle_connection_success_AWS,
+        on_lifecycle_connection_failure=on_lifecycle_connection_failure_AWS,
+        on_lifecycle_disconnection=on_lifecycle_disconnection_AWS,
+        client_id=clientId_AWS)
+    
+    # Start the client, instructing the client to desire a connected state. The client will try to 
+    # establish a connection with the provided settings. If the client is disconnected while in this 
+    # state it will attempt to reconnect automatically.
+    print("==== Starting client ====")
+    client.start()
+
+    # We await the `on_lifecycle_connection_success` callback to be invoked.
+    if not connection_success_event.wait(TIMEOUT_CONNECT_AWS):
+        raise TimeoutError("Connection timeout")
+
+
+    # Subscribe 
+    print("==== Subscribing to topic '{}' ====".format(message_topic_commands_AWS))
+    subscribe_future = client.subscribe(subscribe_packet=mqtt5.SubscribePacket(
+        subscriptions=[mqtt5.Subscription(
+            topic_filter=message_topic_commands_AWS,
+            qos=mqtt5.QoS.AT_LEAST_ONCE)]
+    ))
+    suback = subscribe_future.result(TIMEOUT_CONNECT_AWS)
+    print("Suback received with reason code:{}\n".format(suback.reason_codes))
+
+    iot_connected = True
 
 # Callback when any IOT PUB is received
 def on_publish_received_AWS(publish_packet_data):
@@ -119,7 +163,31 @@ def send_command(command):
 @app.route('/')
 def index():
     """Renders the main control panel page."""
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        endpoint_AWS=endpoint_AWS,
+        cert_filepath_AWS=cert_filepath_AWS,
+        pri_key_filepath_AWS=pri_key_filepath_AWS,
+        clientId_AWS=clientId_AWS,
+        device_name_AWS=device_name_AWS,
+        message_topic_commands_AWS=message_topic_commands_AWS,
+        message_topic_telemetry_AWS=message_topic_telemetry_AWS
+    )
+
+@app.route("/aws")
+def aws_config():
+
+    return render_template(
+        "aws_config.html",
+        title="AWS Configuration",
+        endpoint_AWS=endpoint_AWS,
+        cert_filepath_AWS=cert_filepath_AWS,
+        pri_key_filepath_AWS=pri_key_filepath_AWS,
+        clientId_AWS=clientId_AWS,
+        device_name_AWS=device_name_AWS,
+        message_topic_commands_AWS=message_topic_commands_AWS,
+        message_topic_telemetry_AWS=message_topic_telemetry_AWS
+    )
 
 @app.route('/control', methods=['POST'])
 def control():
@@ -172,53 +240,57 @@ def get_sensors():
     mesage_json = json.dumps(sensor_data)
 
     # We send json message to IOTCore AWS
-    print(f"Publishing message to topic '{message_topic_telemetry_AWS}': {mesage_json}")
-    publish_future = client.publish(mqtt5.PublishPacket(
-        topic=message_topic_telemetry_AWS,
-        payload=mesage_json,
-        qos=mqtt5.QoS.AT_LEAST_ONCE
-    ))
-    publish_completion_data = publish_future.result(TIMEOUT_CONNECT_AWS)
-    print("PubAck received with {}\n".format(repr(publish_completion_data.puback.reason_code)))
+    if iot_connected:
+        print(f"Publishing message to topic '{message_topic_telemetry_AWS}': {mesage_json}")
+        publish_future = client.publish(
+            mqtt5.PublishPacket(
+                topic=message_topic_telemetry_AWS,
+                payload=mesage_json,
+                qos=mqtt5.QoS.AT_LEAST_ONCE
+            )
+        )
+
+        publish_completion_data = publish_future.result(TIMEOUT_CONNECT_AWS)
+        print("PubAck received with {}\n".format(repr(publish_completion_data.puback.reason_code)))
 
     return jsonify(sensor_data)
 
+@app.route('/connect_iot', methods=['POST'])
+def connect_iot():
+
+    global endpoint_AWS
+    global cert_filepath_AWS
+    global pri_key_filepath_AWS
+    global clientId_AWS
+    global device_name_AWS
+    global message_topic_commands_AWS
+    global message_topic_telemetry_AWS
+
+    endpoint_AWS = request.form.get("endpoint_AWS")
+    cert_filepath_AWS = request.form.get("cert_filepath_AWS")
+    pri_key_filepath_AWS = request.form.get("pri_key_filepath_AWS")
+    clientId_AWS = request.form.get("clientId_AWS")
+    device_name_AWS = request.form.get("device_name_AWS")
+    message_topic_commands_AWS = request.form.get("message_topic_commands_AWS")
+    message_topic_telemetry_AWS = request.form.get("message_topic_telemetry_AWS")
+
+    try:
+
+        connect_to_aws()
+
+        return jsonify({
+            "status": "success",
+            "message": "Connected to AWS IoT"
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
+
 if __name__ == '__main__':
-
-    # Create MQTT5 client using mutual TLS via X509 Certificate and Private Key
-    print("==== Creating MQTT5 Client ====\n")
-    client = mqtt5_client_builder.mtls_from_path(
-        endpoint=endpoint_AWS,
-        cert_filepath=cert_filepath_AWS,
-        pri_key_filepath=pri_key_filepath_AWS,
-        on_publish_received=on_publish_received_AWS,
-        on_lifecycle_stopped=on_lifecycle_stopped_AWS,
-        on_lifecycle_attempting_connect=on_lifecycle_attempting_connect_AWS,
-        on_lifecycle_connection_success=on_lifecycle_connection_success_AWS,
-        on_lifecycle_connection_failure=on_lifecycle_connection_failure_AWS,
-        on_lifecycle_disconnection=on_lifecycle_disconnection_AWS,
-        client_id=clientId_AWS)
-    
-    # Start the client, instructing the client to desire a connected state. The client will try to 
-    # establish a connection with the provided settings. If the client is disconnected while in this 
-    # state it will attempt to reconnect automatically.
-    print("==== Starting client ====")
-    client.start()
-
-    # We await the `on_lifecycle_connection_success` callback to be invoked.
-    if not connection_success_event.wait(TIMEOUT_CONNECT_AWS):
-        raise TimeoutError("Connection timeout")
-
-
-    # Subscribe 
-    print("==== Subscribing to topic '{}' ====".format(message_topic_commands_AWS))
-    subscribe_future = client.subscribe(subscribe_packet=mqtt5.SubscribePacket(
-        subscriptions=[mqtt5.Subscription(
-            topic_filter=message_topic_commands_AWS,
-            qos=mqtt5.QoS.AT_LEAST_ONCE)]
-    ))
-    suback = subscribe_future.result(TIMEOUT_CONNECT_AWS)
-    print("Suback received with reason code:{}\n".format(suback.reason_codes))
 
     print("Starting Flask server. Open http://<your-pi-ip-address>:5000 in a browser.")
     app.run(host='0.0.0.0', port=5000)
