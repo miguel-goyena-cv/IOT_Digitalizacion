@@ -4,80 +4,167 @@
 <head>
     <title>Dashboard Telemetría</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 5px;
+        }
+
+        textarea {
+            width: 100%;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: monospace;
+        }
+
+        canvas {
+            margin-top: 10px;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 
 <body>
 
-    <form action="/refresh" method="get" style="margin-bottom: 20px;">
-        <input type="hidden" name="house" value="{{ selected_house }}">
-        <button type="submit" onclick="this.disabled=true; this.innerText='Actualizando...'">
-            🔄 Actualizar datos
-        </button>
-    </form>
+<div class="container">
 
-    <h2>Telemetría Casa1</h2>
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <div class="title">🏠 Telemetría {{ selected_house }}</div>
 
-    <form method="get">
-        <label>Selecciona casa:</label>
-        <select name="house" onchange="this.form.submit()">
-            {% for house in houses %}
-            <option value="{{ house }}" {% if house==selected_house %}selected{% endif %}>
-                {{ house }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
+        <form action="/refresh" method="get" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerText='Actualizando...'">
+            <input type="hidden" name="house" value="{{ selected_house }}">
+            <button type="submit">
+                🔄 Actualizar
+            </button>
+        </form>
+    </div>
 
-    <canvas id="chart"></canvas>
+    <!-- SELECTOR CASA -->
+    <div class="card">
+        <form method="get">
+            <label><strong>Selecciona casa:</strong></label>
+            <select name="house" onchange="this.form.submit()">
+                {% for house in houses %}
+                <option value="{{ house }}" {% if house==selected_house %}selected{% endif %}>
+                    {{ house }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
 
-    <h3>Enviar mensaje JSON a la casa</h3>
+    <!-- GRÁFICA -->
+    <div class="card">
+        <h3>📊 Datos en tiempo real</h3>
+        <canvas id="chart"></canvas>
+    </div>
 
-    <form method="post" action="/send">
-        <input type="hidden" name="house" value="{{ selected_house }}">
+    <!-- ENVÍO JSON -->
+    <div class="card">
+        <h3>📨 Enviar mensaje a la casa</h3>
 
-        <textarea name="message" rows="6" cols="50">
+        <form method="post" action="/send">
+            <input type="hidden" name="house" value="{{ selected_house }}">
+
+            <textarea name="message" rows="6">
 {
     "device": "LCD",
     "messsage": "Hola mundo!!!"
 }
-        </textarea>
-        <br>
-        <button type="submit">Enviar</button>
-    </form>
+            </textarea>
 
-    <script>
+            <br><br>
+            <button type="submit">Enviar mensaje</button>
+        </form>
+    </div>
 
-        const labels = {{ timestamps | tojson }};
-        const temperature = {{ temperature | tojson }};
-        const humidity = {{ humidity | tojson }};
-        const distance = {{ distance | tojson }};
+</div>
 
-        new Chart(document.getElementById("chart"), {
-            type: "line",
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: "Temperatura (C)",
-                        data: temperature,
-                        borderColor: "red"
-                    },
-                    {
-                        label: "Humedad (%)",
-                        data: humidity,
-                        borderColor: "blue"
-                    },
-                    {
-                        label: "Distancia (cm)",
-                        data: distance,
-                        borderColor: "green"
-                    }
-                ]
+<script>
+
+const labels = {{ timestamps | tojson }};
+const temperature = {{ temperature | tojson }};
+const humidity = {{ humidity | tojson }};
+const distance = {{ distance | tojson }};
+
+new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: "Temperatura (°C)",
+                data: temperature,
+                borderColor: "red",
+                tension: 0.3
+            },
+            {
+                label: "Humedad (%)",
+                data: humidity,
+                borderColor: "blue",
+                tension: 0.3
+            },
+            {
+                label: "Distancia (cm)",
+                data: distance,
+                borderColor: "green",
+                tension: 0.3
             }
-        });
+        ]
+    }
+});
 
-    </script>
+</script>
 
 </body>
-
 </html>
