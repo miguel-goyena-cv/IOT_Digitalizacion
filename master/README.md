@@ -1,6 +1,7 @@
 # 🏠 SmartHome IoT con Raspberry 
 ### Control de vivienda mediante APP WEB y conexión a USB a Arduino
 
+![Pyhton/Flusk](https://img.shields.io/badge/Python-Flusk-green?logo=pythonflusk)
 ![Raspberry PI](https://img.shields.io/badge/Raspberry-IoT-blue?logo=raspberry)
 ![Status](https://img.shields.io/badge/status-en%20desarrollo-yellow)
 
